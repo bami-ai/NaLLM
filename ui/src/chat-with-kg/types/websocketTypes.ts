@@ -1,6 +1,8 @@
 export type WebSocketRequest = {
   type: "question";
   question: string;
+  api_key?: string;
+  model_name?: string;
 };
 
 export type WebSocketResponse =
