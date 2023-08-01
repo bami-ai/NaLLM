@@ -1,30 +1,43 @@
 def get_fewshot_examples(openai_api_key):
     return f"""
-#How is Emil Eifrem connected to Michael Hunger?
-MATCH (p1:Person {{name:"Emil Eifrem"}}), (p2:Person {{name:"Michael Hunger"}})
-MATCH p=shortestPath((p1)-[*]-(p2))
+#How is user ShaunSHamilton connected to user ojeytonwilliams?
+MATCH (u1:User {{login:"ShaunSHamilton"}}), (u2:User {{login:"ojeytonwilliams"}})
+MATCH p=shortestPath((u1)-[*]-(u2))
 RETURN p
-#What are the latest news regarding Google?
-MATCH (o:Organization {{name:"Google"}})<-[:MENTIONS]-(a:Article)-[:HAS_CHUNK]->(c)
-RETURN a.title AS title, c.text AS text, c.date AS date
-ORDER BY date DESC LIMIT 3
-#Are there any news regarding return to office policies?
-CALL apoc.ml.openai.embedding(["Are there any news regarding return to office policies?"], 
-   "{openai_api_key}") YIELD embedding
-MATCH (c:Chunk)
-WITH c, gds.similarity.cosine(c.embedding, embedding) AS score
-ORDER BY score DESC LIMIT 3
-RETURN c.text, score
-#What is Microsoft policy regarding to the return to office?
-CALL apoc.ml.openai.embedding(["What is Microsoft policy regarding to the return to office?"], "{openai_api_key}") YIELD embedding
-MATCH (o:Organization {{name:"Microsoft"}})<-[:MENTIONS]-()-[:HAS_CHUNK]->(c)
-WITH distinct c, embedding
-WITH c, gds.similarity.cosine(c.embedding, embedding) AS score
-ORDER BY score DESC LIMIT 3
-RETURN c.text, score
-
-When searching for specific information in the text chunks, never use the CONTAINS clause, but always use the apoc.ml.openai.embedding
-and gds.similarity.cosine functions as shown in the examples.
-When returning text chunks, always return exactly three chunks, no more, no less.
-Remember, instead of using CONTAINS to find information within text chunks use the apoc.ml.openai.embedding and gds.similarity.cosine functions.
+#How many organisations are there in the graph?
+MATCH (o:Organisation) RETURN count(o)
+#Which projects does freeCodeCamp have?
+MATCH (o:Organisation {{name:"freeCodeCamp"}})-[:HAS_PROJECT]-(p:Project) RETURN count(DISTINCT p)
+#Which repositories are affected by freeCodeCamp's project Backend API?
+MATCH (:Organisation {{name:"freeCodeCamp"}})-[:HAS_PROJECT]-(p:Project {{title: "Backend API"}})
+MATCH (p)-[:CONTAINS]-(:Issue)-[:CONTAINS]-(r:Repository)
+RETURN DISTINCT r
+#Which users are assigned to freeCodeCamp's issue "GET /user/get-session-user"?
+MATCH (:Organisation {{name:"freeCodeCamp"}})-[:HAS_PROJECT]-(:Project)-[:CONTAINS]-(i:Issue {{title: "GET /user/get-session-user"}})-[:HAS_EVENT]-(ae:AssignedEvent)-[:ASSIGNED_TO]-(u:User)
+WHERE NOT EXISTS {{
+  MATCH (i)-[:HAS_EVENT]-(ue:UnassignedEvent)-[:ASSIGNED_TO]-(u) 
+  WHERE ue.createdAt > ae.createdAt
+}}
+RETURN DISTINCT u
+#Which users were assigned to electron's issue numbeer 39000 but are not assigned to it anymore?
+MATCH (:Organisation {{name:"electron"}})-[:HAS_PROJECT]-(:Project)-[:CONTAINS]-(i:Issue {{number: 39000}})-[:HAS_EVENT]-(ae:AssignedEvent)-[:ASSIGNED_TO]-(u:User)
+WHERE EXISTS {{
+  MATCH (i)-[:HAS_EVENT]-(ue:UnassignedEvent)-[:ASSIGNED_TO]-(u) 
+  WHERE ue.createdAt > ae.createdAt
+  AND NOT EXISTS {{
+    MATCH (i)-[:HAS_EVENT]-(ae2:AssignedEvent)-[:ASSIGNED_TO]-(u) 
+    WHERE ae2.createdAt > ue.createdAt
+  }}
+}}
+RETURN DISTINCT u
+#Which issues are closed?
+MATCH (i:Issue)-[:HAS_EVENT]-(:ClosedEvent) RETURN DISTINCT i
+#Which users closed electron's issue 39077?
+MATCH (:Organisation {{name:"electron"}})-[:HAS_PROJECT]-(:Project)-[:CONTAINS]-(i:Issue {{number: 39000}})-[:HAS_EVENT]-(ae:AssignedEvent)-[:ASSIGNED_TO]-(u:User),
+(i)-[:HAS_EVENT]-(:ClosedEvent)
+WHERE NOT EXISTS {{
+  MATCH (i)-[:HAS_EVENT]-(ue:UnassignedEvent)-[:ASSIGNED_TO]-(u) 
+  WHERE ue.createdAt > ae.createdAt
+}}
+RETURN DISTINCT u
 """
